@@ -19,8 +19,16 @@ data:
       path: data/discovered/sim_2001-2015.rds
       modified: '2018-10-24T00:12:30.811Z'
       version: 1.0
+    syn17016843:
+      path: data/discovered/hospital_information.csv
+      modified: '2018-10-27T22:36:41.061Z'
+      version: 1.0
   derived:
     syn17015647:
       path: data/derived/snsc_state.csv
       modified: '2018-10-25T06:40:23.961Z'
+      version: 1.0
+    syn17016838:
+      path: data/derived/snsc_sample_1.6m.rds
+      modified: '2018-10-27T21:58:34.814Z'
       version: 1.0

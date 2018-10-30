@@ -6,11 +6,11 @@ library(brazilgeo)
 
 snsc <- data_use("snsc_2001-2015")
 
-snsc_small <- snsc %>%
+snsc_sample <- data_use("snsc_sample_1.6m")
+
+snsc_small <- snsc_sample %>%
   sample_n(25)
 
-snsc_sample <- snsc %>%
-  sample_n(100000)
 # 
 # [1] "m_muni_code"          "birth_muni_code"      "birth_place"          "health_estbl_code"    "m_age_yrs"            "marital_status"      
 # [7] "m_educ"               "occ_code"             "n_live_child"         "n_dead_child"         "gest_weeks_cat"       "preg_type"           
@@ -36,16 +36,18 @@ snsc_sample <- snsc %>%
 
 geo_summary <- function(group_vars, dat = snsc) {
   
+    #n_dead and n_live_child are missing at a pretty high rate often over 10% and sometimes up to 45%.  Not going to use.
+    #agpar and gest weeks are the next most missing
     group_by_at(.tbl = dat, group_vars) %>%
     summarise(
       n = n(),
       n_birthweight = sum(!is.na(brthwt_g)), # there are 171975 missing birthwts in the entire data set
-      n_apgar1 = sum(!is.na(apgar1)),
-      n_apgar5 = sum(!is.na(apgar5)),
-      n_n_live_child = sum(!is.na(n_live_child)),
-      n_n_dead_child = sum(!is.na(n_dead_child)),
-      n_gest_weeks = sum(!is.na(gest_weeks_cat)),
-      n_m_age_yrs = sum(!is.na(m_age_yrs)),
+      n_apgar1 = sum(!is.na(apgar1)), # 2391567 missing
+      n_apgar5 = sum(!is.na(apgar5)), # 2514611 missing
+#      n_n_live_child = sum(!is.na(n_live_child)), # 4039480 missing
+#      n_n_dead_child = sum(!is.na(n_dead_child)), # 7312813 missing
+      n_gest_weeks = sum(!is.na(gest_weeks_cat)), # 804294 missing
+      n_m_age_yrs = sum(!is.na(m_age_yrs)), # 39322 missing
       
       prop_lt2k_bwt = length(which(brthwt_g < 2000)) / n_birthweight,
       prop_gt4k_bwt = length(which(brthwt_g > 4000)) / n_birthweight,
@@ -53,15 +55,15 @@ geo_summary <- function(group_vars, dat = snsc) {
       mean_bwt = mean(brthwt_g, na.rm = TRUE),
       mean_apgar1 = mean(apgar1, na.rm = TRUE),
       mean_apgar5 = mean(apgar5, na.rm = TRUE),
-      mean_n_live_child = mean(n_live_child, na.rm = TRUE),
-      mean_n_dead_child = mean(n_dead_child, na.rm = TRUE),
+#      mean_n_live_child = mean(n_live_child, na.rm = TRUE),
+#      mean_n_dead_child = mean(n_dead_child, na.rm = TRUE),
       mean_m_age_yrs = mean(m_age_yrs, na.rm = TRUE),
       
       sd_bwt = sd(brthwt_g, na.rm = TRUE),
       sd_apgar1 = sd(apgar1, na.rm = TRUE),
       sd_apgar5 = sd(apgar5, na.rm = TRUE),
-      sd_n_live_child = sd(n_live_child, na.rm = TRUE),
-      sd_n_dead_child = sd(n_dead_child, na.rm = TRUE),
+#      sd_n_live_child = sd(n_live_child, na.rm = TRUE),
+#      sd_n_dead_child = sd(n_dead_child, na.rm = TRUE),
       sd_m_age_yrs = sd(m_age_yrs, na.rm = TRUE),
       
       # mad_bwt = mad(brthwt_g, na.rm = TRUE),
@@ -74,8 +76,8 @@ geo_summary <- function(group_vars, dat = snsc) {
       median_bwt = median(brthwt_g, na.rm = TRUE),
       median_apgar1 = median(apgar1, na.rm = TRUE),
       median_apgar5 = median(apgar5, na.rm = TRUE),
-      median_n_live_child = median(n_live_child, na.rm = TRUE),
-      median_n_dead_child = median(n_dead_child, na.rm = TRUE),
+#      median_n_live_child = median(n_live_child, na.rm = TRUE),
+#      median_n_dead_child = median(n_dead_child, na.rm = TRUE),
       median_m_age_yrs = median(m_age_yrs, na.rm = TRUE),
       
       # q1_bwt = quantile(brthwt_g, 0.25, na.rm = TRUE),
@@ -94,13 +96,35 @@ geo_summary <- function(group_vars, dat = snsc) {
     )
 }
 
-geo_summary(vars(birth_year, birth_state_code), snsc_sample)
-
 # summary grouping
 snsc_geo_state <- geo_summary(vars(birth_year, birth_state_code), snsc)
 snsc_geo_micro <- geo_summary(vars(birth_year, birth_micro_code), snsc)
 snsc_geo_meso <- geo_summary(vars(birth_year, birth_meso_code)  , snsc)
 snsc_geo_muni <- geo_summary(vars(birth_year, birth_muni_code)  , snsc)
+# 
+# looking at missing rates
+# snsc_geo_state %>%
+#   select(birth_year, birth_state_code, starts_with("n")) %>%
+#   gather(key = "n_vars", value = "count", -birth_year, -birth_state_code, -n) %>%
+#   mutate(prop_less = (count - n) / n) %>%
+#   filter(birth_year %in% 2010:2015, !is.na(birth_state_code)) %>%
+#   ggplot(aes(x = fct_reorder(n_vars, prop_less), y = prop_less)) +
+#   facet_grid(birth_year~birth_state_code) +
+#   geom_point() +
+#   theme_bw() +
+#   theme(axis.text.x = element_text(angle = 90))
+# 
+# snsc_geo_state %>%
+#   select(birth_year, birth_state_code, starts_with("n")) %>%
+#   gather(key = "n_vars", value = "count", -birth_year, -birth_state_code, -n) %>%
+#   mutate(prop_less = (count - n) / n) %>%
+#   filter(birth_year %in% 2005:2010, !is.na(birth_state_code)) %>%
+#   ggplot(aes(x = fct_reorder(n_vars, prop_less), y = prop_less)) +
+#   facet_grid(birth_year~birth_state_code) +
+#   geom_point() +
+#   theme_bw() +
+#   theme(axis.text.x = element_text(angle = 90))
+
 
 # Calculate proportion allocations
 geo_props <- function(group_vars, cat_vars, dat = snsc) {
@@ -121,8 +145,6 @@ geo_props <- function(group_vars, cat_vars, dat = snsc) {
       n_birthweight = sum(!is.na(brthwt_g)), # there are 171975 missing birthwts in the entire data set
       n_apgar1 = sum(!is.na(apgar1)),
       n_apgar5 = sum(!is.na(apgar5)),
-      n_n_live_child = sum(!is.na(n_live_child)),
-      n_n_dead_child = sum(!is.na(n_dead_child)),
       n_gest_weeks = sum(!is.na(gest_weeks_cat)),
       n_m_age_yrs = sum(!is.na(m_age_yrs))) %>% 
     ungroup() %>%
@@ -170,6 +192,20 @@ return(percents)
   snsc_geo_micro_sex <- geo_props(vars(birth_year, birth_micro_code), vars(sex), snsc)
   snsc_geo_meso_sex <- geo_props(vars(birth_year, birth_meso_code)  , vars(sex), snsc)
   snsc_geo_muni_sex <- geo_props(vars(birth_year, birth_muni_code)  , vars(sex), snsc)
+  
+
+## Still working on this. May add to function above ###
+###########################################
+snsc_geo_state_sex %>%
+  gather(key = "var", value = "perc", -birth_year, -birth_state_code) %>%
+  separate(var, into = c("group_var", "n_type"), sep = "_n_", remove = FALSE) %>%
+  separate(group_var, into = c("variable", "variable_level")) %>%
+  
+  filter(birth_year %in% 2008:2009, !is.na(birth_state_code)) %>%
+  ggplot(aes(x = birth_year, y = perc, color = n_type, fill = n_type)) +
+  facet_grid(variable_level~birth_state_code, scales = "free_y") +
+  geom_jitter(height = 0)
+###########################################    
   
 #proportions group deliv_type        
   snsc_geo_state_deliv <- geo_props(vars(birth_year, birth_state_code), vars(deliv_type), snsc)

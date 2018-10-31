@@ -45,8 +45,8 @@ data:
   derived:
     syn17015647:
       path: data/derived/snsc_state.csv
-      modified: '2018-10-25T06:40:23.961Z'
-      version: 1.0
+      modified: '2018-10-31T05:10:34.568Z'
+      version: 2.0
     syn17016838:
       path: data/derived/snsc_sample_1.6m.rds
       modified: '2018-10-27T21:58:34.814Z'

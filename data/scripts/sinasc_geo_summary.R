@@ -3,6 +3,7 @@
 library(kitools)
 library(tidyverse)
 library(brazilgeo)
+library(purrr)
 
 snsc <- data_use("snsc_2001-2015")
 
@@ -11,28 +12,16 @@ snsc_sample <- data_use("snsc_sample_1.6m")
 snsc_small <- snsc_sample %>%
   sample_n(25)
 
-# 
-# [1] "m_muni_code"          "birth_muni_code"      "birth_place"          "health_estbl_code"    "m_age_yrs"            "marital_status"      
-# [7] "m_educ"               "occ_code"             "n_live_child"         "n_dead_child"         "gest_weeks_cat"       "preg_type"           
-# [13] "deliv_type"           "n_prenat_visit_cat"   "birth_date"           "sex"                  "apgar1"               "apgar5"              
-# [19] "race"                 "brthwt_g"             "cong_anom"            "cong_icd10"           "birth_year"           "birth_state_code"    
-# [25] "birth_micro_code"     "birth_meso_code"      "m_state_code"         "m_micro_code"         "m_meso_code"          "birth_nbhd_code"     
-# [31] "res_nbhd_code"        "birth_time"           "m_country_code"       "m_birth_country_code" "m_educ_grade"         "m_birth_date"        
-# [37] "m_race"               "n_prev_preg"          "n_vag_deliv"          "n_ces_deliv"          "f_age_yrs"            "menstrual_date_last" 
-# [43] "gest_weeks"           "gest_method"          "n_prenat_visit"       "gest_month_precare"   "presentation"         "labor_induced"       
-# [49] "ces_pre_labor"        "m_educ_2010"          "m_fu_code"            "birth_assist"         "m_educ_2010agg"  
-
 ## Questions
 #
-# Should we only look at singleton births?
-# What is the m_fu_code?
-# What is gest_month_precare?
 # Look at distribution of time of day of birth birth_time?
+# We could use the birth_type to maybe find the set of births in the 3 or mor category
 
 # summarize m_age_yrs
 # summarize agpar1 and agpar5 scores
 # summarize n_live_child and n_dead_child
 # summarize gest_weeks
+# summarize gest_month_precare  # maybe convert to trimester and group by
 
 geo_summary <- function(group_vars, dat = snsc) {
   
@@ -140,42 +129,21 @@ geo_props <- function(group_vars, cat_vars, dat = snsc) {
   
   # build n counts for both group vars and the category grouping. Right now I only think it can handle one category grouping
   all_group <- group_by_at(.tbl = dat, c(group_vars, cat_vars)) %>%
-    summarise(
-      n = n(),
-      n_birthweight = sum(!is.na(brthwt_g)), # there are 171975 missing birthwts in the entire data set
-      n_apgar1 = sum(!is.na(apgar1)),
-      n_apgar5 = sum(!is.na(apgar5)),
-      n_gest_weeks = sum(!is.na(gest_weeks_cat)),
-      n_m_age_yrs = sum(!is.na(m_age_yrs))) %>% 
+    count() %>%
     ungroup() %>%
     rename(paste_var = !!cat_vars_char) %>%
-    filter(!paste_var %in% c("null", "Null", "NULL"))  # assumes the category variables have been changed to factors
-#    filter(!is.null(paste_var)) %>%# assumes the category variables not factors
-    
-  
-  # after ungrouping above and removing the null values in the cat_vars then total  
-  total <- all_group %>%
+    filter(!paste_var %in% c("null", "Null", "NULL")) %>% # I don't know why there are NULL values
     group_by_at(group_vars) %>%
-    mutate_at(vars(starts_with("n")) , funs(total = sum(.))) %>%
-    select_at(c(group_vars, vars(paste_var), vars(contains("_total")))) %>%
-    ungroup()
-
-  # now keep the columns for the n counts and the same columns with totals
-  perc_all   <- all_group %>% select_at(vars(starts_with("n")))
-  perc_total <- total %>% select_at(vars(contains("_total")))     
-  # now perc_all / perc_total seen below will return the percentages.
-  
-  #varname_level_pct (e.g. sex_male_pct, sex_female_pct)
-  percents <- all_group %>% 
-    select_at(c(group_vars, vars(paste_var))) %>% 
-    bind_cols(perc_all/perc_total) %>% # the percentage data.  Assuming the rows haven't changed order
-    gather(key = "perc_var", value = "perc", -group_vars_char, -paste_var) %>%
-    mutate(paste_var = str_to_lower(paste_var), spread_var = str_c(cat_vars_char, "_", paste_var, "_", perc_var, "_perc")) %>%
+    mutate(total = sum(n), perc = n / total) %>%
+    ungroup() %>%
+    mutate(paste_var = str_to_lower(paste_var), 
+           spread_var = str_c(cat_vars_char, "_", paste_var,"_p")) %>%
     select(!!group_vars_char, spread_var, perc) %>%
     filter(!is.na(spread_var)) %>% #not sure why there are NAs showing up in the spread var.
     spread(key = spread_var, value = perc)
 
-return(percents)
+  return(all_group)
+
 }
 # group by sex
 # group by deliv type
@@ -185,45 +153,45 @@ return(percents)
 # group by birth_place I may have the hospital code identifiers on laptop.
 # group by birth_assist
 # group by race  
-  
-  
-# proportions group sex     
-  snsc_geo_state_sex <- geo_props(vars(birth_year, birth_state_code), vars(sex), snsc)
-  snsc_geo_micro_sex <- geo_props(vars(birth_year, birth_micro_code), vars(sex), snsc)
-  snsc_geo_meso_sex <- geo_props(vars(birth_year, birth_meso_code)  , vars(sex), snsc)
-  snsc_geo_muni_sex <- geo_props(vars(birth_year, birth_muni_code)  , vars(sex), snsc)
-  
+# group by m_educ
+# group by birth_qtr
+# group by gest_method
+# presentation is only in 2011-forward.  Could be good but don't use.
 
-## Still working on this. May add to function above ###
-###########################################
-snsc_geo_state_sex %>%
-  gather(key = "var", value = "perc", -birth_year, -birth_state_code) %>%
-  separate(var, into = c("group_var", "n_type"), sep = "_n_", remove = FALSE) %>%
-  separate(group_var, into = c("variable", "variable_level")) %>%
-  
-  filter(birth_year %in% 2008:2009, !is.na(birth_state_code)) %>%
-  ggplot(aes(x = birth_year, y = perc, color = n_type, fill = n_type)) +
-  facet_grid(variable_level~birth_state_code, scales = "free_y") +
-  geom_jitter(height = 0)
-###########################################    
-  
-#proportions group deliv_type        
-  snsc_geo_state_deliv <- geo_props(vars(birth_year, birth_state_code), vars(deliv_type), snsc)
-  snsc_geo_micro_deliv <- geo_props(vars(birth_year, birth_micro_code), vars(deliv_type), snsc)
-  snsc_geo_meso_deliv <- geo_props(vars(birth_year, birth_meso_code)  , vars(deliv_type), snsc)
-  snsc_geo_muni_deliv <- geo_props(vars(birth_year, birth_muni_code)  , vars(deliv_type), snsc)
-  
-      
-# merge code and name labels
-brazilgeo::br_meso_codes
+group_types <- list(vars(sex), vars(deliv_type), vars(marital_status), vars(gest_weeks_cat), vars(race), vars(gest_method), vars(n_prenat_visit_cat))  
 
-state <- snsc_geo_state %>%
-  left_join(snsc_geo_state_sex) %>%
-  left_join(snsc_geo_state_deliv) %>%
+# need to check nas for marital status in above function
+snsc_geo_state_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_state_code), .x, snsc)) %>%
+  reduce(left_join) %>%
   rename(state_code = birth_state_code) %>%
-  left_join(brazilgeo::br_state_codes) 
+  left_join(brazilgeo::br_state_codes)
 
+
+snsc_geo_micro_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_micro_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(micro_code = birth_micro_code) %>%
+  left_join(brazilgeo::br_micro_codes)
+
+snsc_geo_meso_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_meso_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(meso_code = birth_meso_code) %>%
+  left_join(brazilgeo::br_meso_codes)
+
+
+snsc_geo_muni_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_muni_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(muni_code = birth_muni_code) %>%
+  left_join(brazilgeo::br_muni_codes)
+    
+  
 # publish data 
 # 
-
+state <- snsc_geo_state %>%
+  rename(state_code = birth_state_code) %>%
+  left_join(snsc_geo_state_props)
+bob <- data_use("snsc_state")
 data_publish(state, name = "snsc_state", file_type = "csv", type = "derived")

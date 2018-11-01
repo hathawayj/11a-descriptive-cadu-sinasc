@@ -7,7 +7,7 @@ library(purrr)
 
 snsc <- data_use("snsc_2001-2015")
 
-snsc_sample <- data_use("snsc_sample_1.6m")
+snsnsc_sample <- data_use("snsc_sample_1.6m")
 
 snsc_small <- snsc_sample %>%
   sample_n(25)
@@ -85,11 +85,138 @@ geo_summary <- function(group_vars, dat = snsc) {
     )
 }
 
-# summary grouping
+# Calculate proportion allocations
+geo_props <- function(group_vars, cat_vars, dat = snsc) {
+  
+  group_vars_char <- group_vars %>%
+    map(~rlang::quo_get_expr(.x)) %>%
+    map(~as.character(.x)) %>% 
+    unlist()
+  cat_vars_char <- cat_vars %>%
+    map(~rlang::quo_get_expr(.x)) %>%
+    map(~as.character(.x)) %>% 
+    unlist()
+  
+  # build n counts for both group vars and the category grouping. Right now I only think it can handle one category grouping
+  all_group <- group_by_at(.tbl = dat, c(group_vars, cat_vars)) %>%
+    drop_na(!!group_vars_char, !!cat_vars_char) %>% # I drop all the cases that don't have values for all group and cat vars
+    count() %>%
+    ungroup() %>%
+    rename(paste_var = !!cat_vars_char) %>%
+    filter(!paste_var %in% c("null", "Null", "NULL")) %>% # I don't know why there are NULL values
+    group_by_at(group_vars) %>%
+    mutate(total = sum(n), perc = n / total) %>%
+    ungroup() %>%
+    mutate(paste_var = str_to_lower(paste_var), 
+           spread_var = str_c(cat_vars_char, "__", paste_var,"__p")) %>%
+    select(!!group_vars_char, spread_var, perc) %>%
+    filter(!is.na(spread_var)) %>% #not sure why there are NAs showing up in the spread var.
+    spread(key = spread_var, value = perc, fill = 0)
+
+  return(all_group)
+
+}
+
+# group by sex
+# group by deliv type
+# group by n_prenat_visit_cat
+# group by gest_weeks_cat
+# group by marital status
+# group by birth_place I may have the hospital code identifiers on laptop.
+# group by birth_assist
+# group by race  
+# group by m_educ
+# group by birth_qtr
+# group by gest_method
+# presentation is only in 2011-forward.  Could be good but don't use.
+
+group_types <- list(vars(sex), vars(deliv_type), vars(marital_status), vars(gest_weeks_cat), vars(race), vars(gest_method), vars(n_prenat_visit_cat), vars(birth_qtr))  
+#group_types <- list(vars(sex))
+
+#############################
+# State aggregation and write
+#############################
+
+snsc_geo_state_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_state_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(state_code = birth_state_code) %>%
+  left_join(brazilgeo::br_state_codes)
+
 snsc_geo_state <- geo_summary(vars(birth_year, birth_state_code), snsc)
+
+state <- snsc_geo_state %>%
+  rename(state_code = birth_state_code) %>%
+  left_join(snsc_geo_state_props)
+
+data_publish(state, name = "snsc_state_summary", file_type = "csv", type = "derived")
+
+rm(snsc_geo_state, snsc_geo_state_props, state)
+
+#############################
+# Micro aggregation and write
+#############################
+
+snsc_geo_micro_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_micro_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(micro_code = birth_micro_code) %>%
+  left_join(brazilgeo::br_micro_codes)
+
 snsc_geo_micro <- geo_summary(vars(birth_year, birth_micro_code), snsc)
+
+micro <- snsc_geo_micro %>%
+  rename(micro_code = birth_micro_code) %>%
+  left_join(snsc_geo_micro_props)
+
+data_publish(micro, name = "snsc_micro_summary", file_type = "csv", type = "derived")
+
+rm(snsc_geo_micro, snsc_geo_micro_props, micro)
+
+
+#############################
+# Meso aggregation and write
+#############################
+
+
+snsc_geo_meso_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_meso_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(meso_code = birth_meso_code) %>%
+  left_join(brazilgeo::br_meso_codes)
+
 snsc_geo_meso <- geo_summary(vars(birth_year, birth_meso_code)  , snsc)
+
+meso <- snsc_geo_meso %>%
+  rename(meso_code = birth_meso_code) %>%
+  left_join(snsc_geo_meso_props)
+
+data_publish(meso, name = "snsc_meso_summary", file_type = "csv", type = "derived")
+
+rm(snsc_geo_meso, snsc_geo_meso_props, meso)
+
+
+#############################
+# Muni aggregation and write
+#############################
+
+snsc_geo_muni_props <- group_types %>%
+  map(~ geo_props(vars(birth_year, birth_muni_code), .x, snsc)) %>%
+  reduce(left_join) %>%
+  rename(muni_code = birth_muni_code) %>%
+  left_join(brazilgeo::br_muni_codes)
+
 snsc_geo_muni <- geo_summary(vars(birth_year, birth_muni_code)  , snsc)
+
+muni <- snsc_geo_muni %>%
+  rename(muni_code = birth_muni_code) %>%
+  left_join(snsc_geo_muni_props)
+
+data_publish(muni, name = "snsc_muni_summary", file_type = "csv", type = "derived")
+
+rm(snsc_geo_muni, snsc_geo_muni_props, muni)
+
+
 # 
 # looking at missing rates
 # snsc_geo_state %>%
@@ -115,83 +242,14 @@ snsc_geo_muni <- geo_summary(vars(birth_year, birth_muni_code)  , snsc)
 #   theme(axis.text.x = element_text(angle = 90))
 
 
-# Calculate proportion allocations
-geo_props <- function(group_vars, cat_vars, dat = snsc) {
-  
-  group_vars_char <- group_vars %>%
-    map(~rlang::quo_get_expr(.x)) %>%
-    map(~as.character(.x)) %>% 
-    unlist()
-  cat_vars_char <- cat_vars %>%
-    map(~rlang::quo_get_expr(.x)) %>%
-    map(~as.character(.x)) %>% 
-    unlist()
-  
-  # build n counts for both group vars and the category grouping. Right now I only think it can handle one category grouping
-  all_group <- group_by_at(.tbl = dat, c(group_vars, cat_vars)) %>%
-    count() %>%
-    ungroup() %>%
-    rename(paste_var = !!cat_vars_char) %>%
-    filter(!paste_var %in% c("null", "Null", "NULL")) %>% # I don't know why there are NULL values
-    group_by_at(group_vars) %>%
-    mutate(total = sum(n), perc = n / total) %>%
-    ungroup() %>%
-    mutate(paste_var = str_to_lower(paste_var), 
-           spread_var = str_c(cat_vars_char, "_", paste_var,"_p")) %>%
-    select(!!group_vars_char, spread_var, perc) %>%
-    filter(!is.na(spread_var)) %>% #not sure why there are NAs showing up in the spread var.
-    spread(key = spread_var, value = perc)
-
-  return(all_group)
-
-}
-# group by sex
-# group by deliv type
-# group by n_prenat_visit_cat
-# group by gest_weeks_cat
-# group by marital status
-# group by birth_place I may have the hospital code identifiers on laptop.
-# group by birth_assist
-# group by race  
-# group by m_educ
-# group by birth_qtr
-# group by gest_method
-# presentation is only in 2011-forward.  Could be good but don't use.
-
-group_types <- list(vars(sex), vars(deliv_type), vars(marital_status), vars(gest_weeks_cat), vars(race), vars(gest_method), vars(n_prenat_visit_cat))  
-
-# need to check nas for marital status in above function
-snsc_geo_state_props <- group_types %>%
-  map(~ geo_props(vars(birth_year, birth_state_code), .x, snsc)) %>%
-  reduce(left_join) %>%
-  rename(state_code = birth_state_code) %>%
-  left_join(brazilgeo::br_state_codes)
-
-
-snsc_geo_micro_props <- group_types %>%
-  map(~ geo_props(vars(birth_year, birth_micro_code), .x, snsc)) %>%
-  reduce(left_join) %>%
-  rename(micro_code = birth_micro_code) %>%
-  left_join(brazilgeo::br_micro_codes)
-
-snsc_geo_meso_props <- group_types %>%
-  map(~ geo_props(vars(birth_year, birth_meso_code), .x, snsc)) %>%
-  reduce(left_join) %>%
-  rename(meso_code = birth_meso_code) %>%
-  left_join(brazilgeo::br_meso_codes)
-
-
-snsc_geo_muni_props <- group_types %>%
-  map(~ geo_props(vars(birth_year, birth_muni_code), .x, snsc)) %>%
-  reduce(left_join) %>%
-  rename(muni_code = birth_muni_code) %>%
-  left_join(brazilgeo::br_muni_codes)
     
   
+
+
 # publish data 
 # 
-state <- snsc_geo_state %>%
-  rename(state_code = birth_state_code) %>%
-  left_join(snsc_geo_state_props)
-bob <- data_use("snsc_state")
-data_publish(state, name = "snsc_state", file_type = "csv", type = "derived")
+
+
+
+
+

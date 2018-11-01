@@ -49,5 +49,21 @@ data:
       version: 2.0
     syn17016838:
       path: data/derived/snsc_sample_1.6m.rds
-      modified: '2018-10-27T21:58:34.814Z'
+      modified: '2018-10-31T22:01:25.347Z'
+      version: 2.0
+    syn17020853:
+      path: data/derived/snsc_state_summary.csv
+      modified: '2018-11-01T16:11:45.300Z'
+      version: 1.0
+    syn17020859:
+      path: data/derived/snsc_micro_summary.csv
+      modified: '2018-11-01T16:24:06.546Z'
+      version: 1.0
+    syn17020977:
+      path: data/derived/snsc_meso_summary.csv
+      modified: '2018-11-01T16:56:40.923Z'
+      version: 1.0
+    syn17021103:
+      path: data/derived/snsc_muni_summary.csv
+      modified: '2018-11-01T17:18:00.357Z'
       version: 1.0
